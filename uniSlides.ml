@@ -334,3 +334,106 @@ let even x = x mod 2 = 0;;
 find_opt even [1;2;3;4;5;6];;
 
 
+
+(* polymorphic functions: *)
+
+(* they can operate on values of different types - they are generic *)
+(* instead of being a specific type like int they use type variables like 'a, 'b *)
+(* for example: find_opt : ('a -> bool) -> 'a list -> 'a option *)
+
+let cons_r xs x = x::xs;;
+let rev l = fold_left cons_r [] l;;
+
+(* polymorphic datatypes: *)
+type 'a tree = Leaf of 'a | Node of ('a tree * 'a tree);;
+(* a tree is called type constructor, because it allows to create a new type from another type. *)
+
+Leaf 1;;
+Node (Leaf ('a', true), Leaf ('b', false));;
+
+(* functions for polymorphyc datatypes are again polymorphic: *)
+let rec size = function 
+   Leaf _ -> 1 
+  | Node (t, t') -> size t + size t';;
+
+let rec flatten = function 
+   Leaf x -> [x]
+  | Node (t, t') -> flatten t @ flatten t';; (* non tail recursive *)
+
+let flatten1 t = let rec doit t xs = 
+  match t with 
+   Leaf x -> x::xs 
+  | Node (t, t') -> let xs = doit t' xs 
+in doit t xs 
+in doit t [];;  (* tail recursive *)
+
+let t = Node (Node (Leaf 1, Leaf 5), Leaf 3);;
+size t;;
+flatten t;;
+flatten1 t;;
+
+
+(* queues: *)
+
+(* first idea: *)
+type 'a queue = 'a list;;
+
+let dequeue = function 
+   [] -> (None, [])
+  | x::xs -> (Some x, xs);;
+
+let enqueue x xs = xs @ [x];;
+(* tail recursive and better version: but uses more memory *)
+let enqueue1 x xs = let rec helper acc = function 
+   [] -> List.rev (x::acc) 
+  | x::xs ->  helper (x::acc) xs
+  in helper [] xs;;
+
+(* second idea: *)
+type 'a queue2 = Queue of 'a list * 'a list;;
+
+let is_empty = function 
+   Queue ([], []) -> true 
+  | _ -> false;;
+
+let queue_of_list list = Queue (list, []);;
+
+let list_of_queue = function 
+   Queue (first, []) -> first 
+  | Queue (first, last) -> first @ List.rev last;;
+
+let enqueue x (Queue (first, last)) = Queue (first, x::last);;
+
+let dequeue = function 
+   Queue ([], last) -> (match List.rev last with 
+                [] -> (None, Queue ([], []))
+              | x::xs -> (Some x, Queue (xs, [])) )
+  | Queue (x::xs, last) -> (Some x, Queue (xs, last));;
+
+
+
+(* Anonymous functions: *)
+fun x y z -> x + y + z;;
+(* the notion originates from λ-calculus. *)
+(* recursive functions cannot be defined this way *)
+
+(* pattern matching: *)
+function None -> 0 
+  | Some x -> x * x + 1;;
+
+(* often anonymous functions are used as arguments to functionals: *)
+mapp (fun x -> x*x) [1;2;3];;
+(* [1; 4; 9] *)
+
+let make_undefined () = fun x -> None;;
+make_undefined () 3;;  (*None*)
+
+let def_one (x,y) = fun x' -> if x = x' then Some y else None;;
+def_one (1, "Hello!") 1;; (*Hello!*)
+def_one (1, "Hello!") 2;; (*None*)
+
+
+(* Exceptions: *)
+1/0;;   (* Exception: Division_by_zero. *)
+List.tl (List.tl [1]);; (* Exception: Failure "tl". *)
+
