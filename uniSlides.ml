@@ -203,7 +203,7 @@ let is_some x = match x with
 
 let get x = match x with
 | Some y -> y
-| None -> y
+| None -> ()
 let value x a = match x with
 | Some y -> y
 | None -> a
@@ -434,6 +434,302 @@ def_one (1, "Hello!") 2;; (*None*)
 
 
 (* Exceptions: *)
-1/0;;   (* Exception: Division_by_zero. *)
-List.tl (List.tl [1]);; (* Exception: Failure "tl". *)
+(* 1/0;; *)  (* Exception: Division_by_zero. *)
+(* List.tl (List.tl [1]);; *)  (* Exception: Failure "tl". *)
 
+(* another reason for an exception is an incomplete match *)
+
+(* custom exceptions: *)
+Failure "complete nonsense!";;   (* exn = Failure "complete nonsense!" *)
+exception Hell;;  (* exception Hell *)
+Hell;;   (* exn = Hell *)
+
+exception Hell of string;;  (* exception Hell of string *)
+Hell "damn!";;     (* exn = Hell "damn!" *)
+
+(* exceptions can be raised and handled: *)
+let divide (n,m) = try Some (n / m) with Division_by_zero -> None;;
+
+divide (10,3);;  (* Some 3 *)
+divide (10,0);;  (* None *)
+
+
+(* member function can be re-defined: *)
+let rec member x l = try if x = List.hd l then true else member x (List.tl l)
+with Failure _ -> false;;
+
+member 2 [1;2;3];;  (* true *)
+member 4 [1;2;3];;  (* false *)
+
+
+let f (x,y) = x / (y - 1);;
+let g (x,y) = try let n = try f (x,y) with Division_by_zero -> 
+  raise (Failure "Division by zero") 
+in string_of_int (n*n) 
+with Failure str -> "Error: " ^str;;
+
+g (6,1);;  (* "Error: Division by zero" *)
+g (6,3);;  (* "9" *)
+
+
+(* textual input and output: *)
+print_string "Hello World!\n";;  (* unit = () *)
+read_line ();;
+
+(* reading from a file: *)
+let infile = open_in "test.txt";;
+
+input_line infile;;  (* reads the lines from the file until there is nothing left to read *)
+in_channel_length infile;; (* total bytes in the file *)
+
+(* if a chanel is no longer required, it should be close: *)
+close_in infile;;
+
+input_char stdin;; (* reads only the first character *)
+
+
+(* outputing to files: *)
+let outfile = open_out "out.txt";;  (* creates a file *)
+output_string outfile "Hello ";;
+output_string outfile "World!\n";;
+
+(* file needs to be closed for the strings to occur in the file *)
+close_out outfile;;
+
+
+(* sequences: *)
+print_string "Hello";
+print_string " ";
+print_string "World!\n";;
+
+let rec iter f = function 
+   [] -> ()
+  | x::[] -> f x 
+  | x::xs -> f x; iter f xs;;
+
+iter print_string ["Hello "; "World"; "!\n"];;
+
+
+
+(* The module system of OCaml: *)
+(* for organizing larger software systems, OCaml offers modules: *)
+module Pairs = 
+  struct 
+    type 'a pair = 'a * 'a 
+    let pair (a,b) = (a,b)
+    let firstt (a,b) = a 
+    let secondd (a,b) = b 
+end;;
+
+(* the definitions inside the module are not visible outside: *)
+(* firstt;; *)   (* Unbound value firstt *)
+
+(* components can be accessed via qualification: *)
+Pairs.firstt;;
+
+(* thus several functions can be defined all with the same name: *)
+module Triples = 
+  struct 
+    type 'a triple = Triple of 'a * 'a * 'a 
+    let firstt (Triple (a,_,_)) = a 
+    let secondd (Triple (_,b,_)) = b 
+    let thirdd (Triple (_,_,c)) = c 
+end;;
+
+Triples.firstt;;
+
+(* or several implementations of the same function: *)
+module Pairs2 = 
+  struct 
+    type 'a pair = bool -> 'a 
+    let pair (a,b) = fun x -> if x then a else b 
+    let firstt ab = ab true 
+    let secondd ab = ab false 
+end;;
+
+(* all definitions of a module can be made directly accessible: *)
+open Pairs2;;
+pair;;
+pair (4,3) true;;
+
+(* the keyword include allows to include the definitions of another module into the present module: *)
+module A = struct let x = 1 end;;
+
+module B = 
+  struct 
+    open A 
+    let y = 2 
+end;;
+
+module C = 
+  struct 
+include A 
+include B 
+end;;
+
+
+(* Nested modules: modules may again contain modules: *)
+module Quads = struct 
+  module Pairs =
+    struct 
+      type 'a pair = 'a * 'a 
+      let pair (a,b) = (a,b)
+      let firstt (a,b) = a 
+      let secondd (a,b) = b 
+end
+      type 'a quad = 'a Pairs.pair Pairs.pair 
+      let quad (a,b,c,d) = Pairs.pair (Pairs.pair (a,b), Pairs.pair (c,d))
+      let firstt q = Pairs.firstt (Pairs.firstt q)
+      let secondd q = Pairs.secondd (Pairs.firstt q)
+      let thirdd q = Pairs.firstt (Pairs.secondd q)
+      let fourthh q = Pairs.secondd (Pairs.secondd q)
+end;;
+
+Quads.quad (1,2,3,4);;
+Quads.Pairs.firstt;;
+let qq = Quads.quad (1,2,3,4);;
+Quads.firstt qq;;
+Quads.secondd qq;;
+Quads.thirdd qq;;
+Quads.fourthh qq;;
+
+
+(* module types or signatures: *)
+(* Signatures allow to restrict what a module may export. *)
+module Sort = struct 
+  let single lst = mapp (fun x -> [x]) lst 
+
+  let rec merge l1 l2 = match (l1,l2) with 
+     ([],_) -> l2 
+    | (_,[]) -> l1 
+    | (x::xs, y::ys) -> if x<y then x::merge xs l2 else y::merge l1 ys 
+
+  let rec merge_lists = function 
+     [] -> [] | [l] -> [l] 
+    | l1::l2::ll -> merge l1 l2 ::merge_lists ll 
+
+  let sort lst = let lst = single lst in let rec doit = function 
+     [] -> [] | [l] -> l 
+    | l -> doit (merge_lists l)
+in doit lst 
+end;;
+
+Sort.single [1;2;3];; (* [[1]; [2]; [3]] *)
+Sort.sort [4;7;2;9;16];; (* [2; 4; 7; 9; 16] *)
+
+(* in order to hide functions single and merge_lists, we introduce the signature: *)
+module type Sort = sig 
+  val merge : 'a list -> 'a list -> 'a list 
+  val sort : 'a list -> 'a list 
+end;;
+(* this signature says : Any module of type Sort must provide functions merge and sort, and only these are accessible *)
+
+(* the functions single and merge_lists are no longer exported: *)
+module MySort : Sort = Sort;;
+(* this says : Create a module MySort that is based on the full Sort module,
+But only expose the parts of it that are declared in the Sort signature *)
+
+(* MySort.single;; *)  (* unbound value *)
+
+
+(* signatures and types: *)
+module type A1 = sig 
+  val f : 'a -> 'b -> 'b 
+end;;
+
+module type A2 = sig 
+  val f : int -> char -> int 
+end;;
+
+module A = struct 
+  let f x y = x   (* val f : 'a -> 'b -> 'a *)
+end;;
+
+(* module A1 : A1 = A;; *)  (* signature mismatch *)
+module A2 : A2 = A;;  (* module A2 : A2 *)
+A2.f;;
+
+
+(* information hiding *)
+(* we sometimes want to hide the structure of exported types of a module *)
+module ListQueue = struct 
+  type 'a queue = 'a list 
+    let empty_queue () = [] 
+    let isEmpty = function 
+      [] -> true | _ -> false 
+    let enqueue xs y = xs @ [y] 
+    let dequeue (x::xs) = (x,xs)
+end;;
+
+
+module type Queue = sig 
+  type 'a queue 
+  val empty_queue : unit -> 'a queue 
+  val isEmpty : 'a queue -> bool
+  val enqueue : 'a queue -> 'a -> 'a queue 
+  val dequeue : 'a queue -> 'a * 'a queue
+end;;
+
+module Queue : Queue = ListQueue;;
+open Queue;;
+(* isEmpty [];; *)  (* this is restricted *)
+
+
+
+(* functors: *)
+(* higher order modules are functors.
+it receives a sequence of modules as parameters. the result is a new module *)
+module type Decons = sig 
+  type 'a t 
+  val decons : 'a t -> ('a * 'a t) option 
+end;;
+
+module type GenFold = functor (X : Decons) -> sig   (* this functor expects a module named X and it must follow the signature Decons *)
+  val fold_left : ('b -> 'a -> 'b) -> 'b -> 'a X.t -> 'b
+  val fold_right : ('a -> 'b -> 'b) -> 'a X.t -> 'b -> 'b
+  val size : 'a X.t -> int
+  val list_of : 'a X.t -> 'a list
+  val iter : ('a -> unit) -> 'a X.t -> unit
+end;;
+
+module Fold : GenFold = functor (X : Decons) -> 
+  struct 
+    let rec fold_left f b t = 
+      match X.decons t with 
+       None -> b 
+      | Some (x,t) -> fold_left f (f b x) t 
+
+      let rec fold_right f t b = match X.decons t with 
+         None -> b 
+        | Some (x,t) -> f x (fold_right f t b)
+
+      let size t = fold_left (fun a x -> a + 1)  t 
+      let list_of t = fold_right (fun x xs -> x::xs) t []
+      let iter f t = fold_left (fun () x -> f x) () t 
+    end;;
+
+  (* now we can apply the functor to the module to obtain a new module *)
+module MyQueue = struct open Queue 
+    type 'a t = 'a queue 
+
+    let decons = function 
+       Queue ([], xs) -> (
+          match rev xs with
+             [] -> None 
+            | x::xs -> Some (x, Queue (xs, []))
+       )
+       | Queue (x::xs, t) -> Some (x, Queue (xs,t))
+  end;;
+
+
+module MyAVL = struct open AVL 
+  type 'a t = 'a avl 
+
+  let decons avl = 
+    match extract_min avl with 
+       None, avl -> None 
+      | Some (a, avl) -> Some (a, avl)
+  end;;
+
+module FoldAVL = Fold (MyAVL);;
+module FoldQueue = Fold (MyQueue);;
