@@ -133,3 +133,144 @@ replicate_tr 3 "hi";;
 
 
 (* lazy lists *)
+type 'a lazy_list = Nil | Cons of 'a * (unit -> 'a lazy_list);;
+
+let rec from n = Cons (n, fun () -> from (n + 1));;
+let head = function 
+   Nil -> failwith "Empty lazy list"
+  | Cons (x, _) -> x;;
+
+let tail = function 
+   Nil -> failwith "Empty lazy list"
+  | Cons (_, xs) -> xs ();;
+
+let rec from n = Cons (n, fun () -> from (n+1));;
+
+let numbers = from 1;;
+head numbers;;
+tail numbers |> head;;  (* |> means pass the result of the left expression into head *)
+
+
+(* 3 *)
+type 'a llist = Nil | Cons of 'a * (unit -> 'a llist);;
+let rec map_over_custom_llist f = function 
+   Nil -> Nil 
+  | Cons (x, xs) -> Cons (f x, fun () -> map_over_custom_llist f (xs ()));;
+
+
+(* 4 *)
+let rec merge_llists l1 l2 = match (l1, l2) with 
+   (Nil, l) | (l, Nil) -> l
+  | (Cons (x, xs), Cons (y, ys)) -> 
+    if x <= y then Cons (x, fun () -> merge_llists (xs()) l2)
+  else Cons (y, fun () -> merge_llists l1 (ys()));;
+
+
+let rec from_to s e j = if s > e then Nil
+else Cons (s, fun () -> from_to (s+j) e j);;
+
+from_to 0 5 1;;
+
+
+let rec string_of_llist l =
+  match l with
+  | Nil -> "Nil"
+  | Cons (x, xf) -> string_of_int x ^ ", " ^ string_of_llist (xf ());;
+
+
+string_of_llist (merge_llists (from_to 0 5 1) (from_to 0 5 1));;
+
+
+(* 5 *)
+let rec drop_dupl = function
+  | Nil -> Nil
+  | Cons (x, xf) ->
+      let rec skip_same x rest =
+        match rest with
+        | Nil -> Nil
+        | Cons (y, yf) when x = y -> skip_same x (yf ())
+        | Cons (y, yf) -> Cons (y, fun () -> drop_dupl (yf ()))
+      in
+      Cons (x, fun () -> skip_same x (xf ()));;
+
+
+string_of_llist (drop_dupl (merge_llists (from_to 0 5 1) (from_to 6 5 1)));;
+
+let rec h n m a = if a = 0 then Nil 
+else Cons (n, fun () -> h (n*m) m (a-1));;
+let h2 = h 1 2;;
+let h3 = h 1 3;;
+let h5 = h 1 5;;
+
+let hamming_llist =  (merge_llists (h2 10) (merge_llists (h3 10) (h5 10)));;
+let final = string_of_llist (drop_dupl hamming_llist);;
+
+(* correct version: *)
+let rec scale n l = match l with
+  | Nil -> Nil
+  | Cons (x, xf) -> Cons (n * x, fun () -> scale n (xf ()));;
+
+
+let rec hamm_llist =
+  let rec h = Cons (1, fun () ->
+    let h2 = scale 2 h in
+    let h3 = scale 3 h in
+    let h5 = scale 5 h in
+    merge_llists h2 (merge_llists h3 h5))
+  in h;;
+
+let rec take n l = match n, l with
+  | 0, _ | _, Nil -> []
+  | n, Cons (x, xf) -> x :: take (n - 1) (xf ());;
+
+let () =
+  let first_20 = take 20 hamming_llist in
+  List.iter (fun x -> Printf.printf "%d " x) first_20;
+  print_newline ()  (* <-- make sure it ends with a newline *)
+
+
+
+(* Binary search trees *)
+(* 1 *)
+type binary_tree = Empty | Node of int * binary_tree * binary_tree;;
+
+(* 2 *)
+let t1 = Node (9, 
+  Node (6, 
+    Node (1, Empty, Empty),
+    Node (8, Empty, Empty)),
+  Node (12,
+    Empty,
+    Node (42, Empty, Empty))
+  );;
+
+(* 3 *)
+let rec to_list = function 
+   Empty -> [] 
+  | Node (x, t1, t2) -> (to_list t1) @ x::(to_list t2);;
+
+to_list t1;;
+
+
+(* 4 *)
+let rec insert x = function 
+   Empty -> Node (x, Empty, Empty)
+  | Node (a, t1, t2) as node -> if a = x then node else 
+      if x > a then Node (a, t1, insert x t2) 
+      else Node (a, insert x t1, t2);;
+
+
+(* 5 *)
+let rec remove_max = function
+  | Empty -> failwith "unreachable"
+  | Node (v, l, Empty) -> v, l
+  | Node (v, l, r) -> let v', r' = remove_max r in v', Node (v, l, r')
+
+
+let rec remove x = function
+    Empty -> Empty
+  | Node (a, t1, t2) -> if x < a then Node (a, remove x t1, t2)
+  else if x > a then Node (a, t1, remove x t2)
+  else match t1, t2 with 
+   Empty, t | t, Empty -> t
+  | _ -> let x', t1' = remove_max t1 in Node (x', t1', t2);;
